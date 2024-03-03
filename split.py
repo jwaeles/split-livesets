@@ -14,16 +14,27 @@ def print_format(p:WavHeaderParser, line_prepend = "", line_append = ""):
     print(f"{line_prepend}Sample rate: {f['sample_rate']} Hz{line_append}")
     print(f"{line_prepend}Bits: {f['bits']} bits{line_append}")
     
+def parse_wav_files(dirname):
 
-def process_directory(dirname):
     dir_path = Path(dirname)
     files = [str(file) for file in dir_path.iterdir() if file.suffix.lower() == '.wav']
     
     files.sort()
+    res = []
     
     for file in files:
+        res.append(WavHeaderParser(file))
+        
+    return res
+    
+
+def process_directory(dirname):
+    
+    files = parse_wav_files(dirname)
+    
+    for file in files:
+        
         print(os.path.basename(file))
-        p = WavHeaderParser(file)
         print(f"\t{p.getSampleCount()} samples, {p.getLengthSeconds()} seconds")
         print_format(p, "\t", "")
         
