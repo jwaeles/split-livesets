@@ -76,6 +76,7 @@ class WavHeaderParser:
                         # OriginationTime follows it directly for 8 bytes
                         odate = bext_data[320: 330].decode('utf-8')
                         otime = bext_data[330: 338].decode('utf-8')
+                        self.vprint(f"  Origination date/time: {odate} {otime}")
                         
                         self.start_datetime = datetime.strptime(odate + " " + otime, "%Y-%m-%d %H:%M:%S")
                         
@@ -88,7 +89,9 @@ class WavHeaderParser:
                     
             if self.fmt_chunk is None:
                 raise ValueError("Not a valid WAV file (missing format chunk, it must appear exactly once)")
-                
+        
+        self.vprint("Done parsing")
+        self.vprint("")
     
     def getFilename(self):
         return self.filename 
@@ -98,7 +101,6 @@ class WavHeaderParser:
         
     def getCuePoints(self):
         res = []
-        self.vprint(f"{self.getFilename()} contains {len(self.cue_points)} cues")
         for c in self.cue_points:
             cue_seconds = c['sample_offset'] / self.fmt_chunk['sample_rate']
             res.append({'id': c['id'], 'sample': c['sample_offset'], 'seconds': cue_seconds})
@@ -118,6 +120,9 @@ class WavHeaderParser:
         return self.start_datetime
         
     def getEndTime(self):
+        if self.start_datetime is None:
+            return None
+        
         ts = timedelta(seconds = self.getLengthSeconds())
         return self.start_datetime + ts
         
@@ -149,7 +154,7 @@ class WavHeaderParser:
 
         
         # 
-        regex = r"^ZOOM([0-9]{4})_Tr(12|LR)\-([0-9]{4})\.WAV$"
+        regex = r"^(PANOK\-)?ZOOM([0-9]{4})_Tr(12|LR)\-([0-9]{4})\.WAV$"
         
         prevm = re.match(regex, prevbn)
         thism = re.match(regex, thisbn)
@@ -160,8 +165,8 @@ class WavHeaderParser:
         if thism is None:
             raise ValueError("The current WAV file doesn't follow standard ZOOM H5 naming conventions")
             
-        prev_sess_num, prev_input_name, prev_sequence = prevm.groups()        
-        this_sess_num, this_input_name, this_sequence = thism.groups()
+        _, prev_sess_num, prev_input_name, prev_sequence = prevm.groups()        
+        _, this_sess_num, this_input_name, this_sequence = thism.groups()
         
         if prev_sess_num != this_sess_num:
             self.vprint(f"Different session numbers ({prev_sess_num}, {this_sess_num}), so nope")

@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path 
 from thelightguy.WavHeaderParser import WavHeaderParser
 import os.path
+from datetime import datetime, timedelta
 
 verbose_mode = False 
 
@@ -17,7 +18,9 @@ def print_format(p:WavHeaderParser, line_prepend = "", line_append = ""):
 def parse_wav_files(dirname):
 
     if verbose_mode:
+        print()
         print(f"Checking for .wav files in folder {dirname}")
+        print()
 
     dir_path = Path(dirname)
     files = [str(file) for file in dir_path.iterdir() if file.suffix.lower() == '.wav']
@@ -26,55 +29,92 @@ def parse_wav_files(dirname):
     res = []
     
     for file in files:
-        res.append(WavHeaderParser(file, verbose_mode))
+        try:
+            res.append(WavHeaderParser(file, verbose_mode))
+        except ValueError as vex:
+            print(vex)
+            pass
         
     return res
     
 def group_files(files):
 
+    if verbose_mode:
+        print("Grouping files")
+    
     prev_file = None
     grouped = []
     
-    # this will make a list of lists
+    # this will make a list of dictionaries
     for file in files:
-        if file.isContinuationOf(prev_file):
+        isContinuation = False 
+        try:
+            isContinuation = file.isContinuationOf(prev_file)
+        except ValueError as vex:
+            if verbose_mode:
+                print(vex)
+            pass 
+          
+        if isContinuation:
             # insert in latest existing list
-            grouped[len(grouped)-1].append(file)
+            grouped[len(grouped)-1]["files"].append(file)
         else:
             # make new list
-            grouped.append([file])
+            grouped.append({"title": None, "files": [file]})
         
         prev_file = file 
+        
+    for i in range(len(grouped)):
+        g = grouped[i]
+        filenames = []
+        
+        for f in g["files"]:
+            filenames.append(f.getFilename())
+            
+        grouped[i]["title"] = os.path.basename(os.path.commonprefix(filenames)) + ("*" if len(filenames) > 1 else "")
+    
+    
+    if verbose_mode:
+        print("Done grouping files")
+        print()
         
     return(grouped)
     
 
 def process_directory(dirname):
+    print()
+    print(f"Directory: {os.path.basename(dirname)}")
     
     files = parse_wav_files(dirname)
     groups = group_files(files)
+    warnings = []
     
     for g in groups:
-        print("GROUP")
-        firstFile = g[0]
+        print()
+        print(f"\tGROUP {g['title']}")
+        firstFile = g["files"][0]
+        lastFile = None
         startTime = firstFile.getStartTime()
         previousSeconds = 0.0
         cueCount = 1
-        previousSamples = 0
         
-        for f in g:
+        print(f"\t - Recording started {startTime}")
+        
+        for f in g["files"]:
             for c in f.getCuePoints():
                 cueSeconds = c['seconds'] + previousSeconds 
-                print(f"Cue point {cueCount} at {cueSeconds}")
+                td = timedelta(seconds = cueSeconds)
+                print(f"\t\tCue point {cueCount} found {td} after start")
                 cueCount = cueCount + 1 
             previousSeconds = previousSeconds + f.getLengthSeconds()
+            lastFile = f
         
+        print(f"\t - Recording stopped {lastFile.getEndTime()}")
         
 
 def main():
     global verbose_mode
     
-    # Create ArgumentParser object
     parser = argparse.ArgumentParser(description="Process some WAV files.")
 
     # Add required 'directory' argument
@@ -90,14 +130,7 @@ def main():
     directory = args.directory
     verbose_mode = args.verbose
 
-    # Example usage
-    if verbose_mode:
-        print(f"Verbose mode is ON. Processing files in directory: {directory}")
-    else:
-        print(f"Processing files in directory: {directory}")
 
-    # Place your file processing code here
-    # ...
     process_directory(directory)
 
 if __name__ == "__main__":
