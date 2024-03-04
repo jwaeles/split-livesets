@@ -16,6 +16,9 @@ def print_format(p:WavHeaderParser, line_prepend = "", line_append = ""):
     
 def parse_wav_files(dirname):
 
+    if verbose_mode:
+        print(f"Checking for .wav files in folder {dirname}")
+
     dir_path = Path(dirname)
     files = [str(file) for file in dir_path.iterdir() if file.suffix.lower() == '.wav']
     
@@ -23,25 +26,54 @@ def parse_wav_files(dirname):
     res = []
     
     for file in files:
-        res.append(WavHeaderParser(file))
+        res.append(WavHeaderParser(file, verbose_mode))
         
     return res
+    
+def group_files(files):
+
+    prev_file = None
+    grouped = []
+    
+    # this will make a list of lists
+    for file in files:
+        if file.isContinuationOf(prev_file):
+            # insert in latest existing list
+            grouped[len(grouped)-1].append(file)
+        else:
+            # make new list
+            grouped.append([file])
+        
+        prev_file = file 
+        
+    return(grouped)
     
 
 def process_directory(dirname):
     
     files = parse_wav_files(dirname)
+    groups = group_files(files)
     
-    for file in files:
+    for g in groups:
+        print("GROUP")
+        firstFile = g[0]
+        startTime = firstFile.getStartTime()
+        previousSeconds = 0.0
+        cueCount = 1
+        previousSamples = 0
         
-        print(os.path.basename(file))
-        print(f"\t{p.getSampleCount()} samples, {p.getLengthSeconds()} seconds")
-        print_format(p, "\t", "")
+        for f in g:
+            for c in f.getCuePoints():
+                cueSeconds = c['seconds'] + previousSeconds 
+                print(f"Cue point {cueCount} at {cueSeconds}")
+                cueCount = cueCount + 1 
+            previousSeconds = previousSeconds + f.getLengthSeconds()
         
         
-        #print(f"\t{p.getCuePoints()}")
 
 def main():
+    global verbose_mode
+    
     # Create ArgumentParser object
     parser = argparse.ArgumentParser(description="Process some WAV files.")
 
